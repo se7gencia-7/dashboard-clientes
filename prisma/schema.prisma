@@ -28,18 +28,17 @@ model Client {
 // USUÁRIO - Pessoa que acessa o dashboard
 model User {
   id        String   @id @default(cuid())
-  email     String
+  email     String   @unique
   password  String   @db.Text
   name      String
-  role      String   @default("member") // "admin", "manager", "member"
+  role      String   @default("member") // "admin", "manager", "member", "se7_admin", "se7_analyst"
+  userType  String   @default("client") // "client" ou "se7_team"
 
-  clientId  String
-  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId  String?
+  client    Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  @@unique([email, clientId]) // Email único por cliente
 }
 
 // PROJETO - Projeto de anúncios do cliente
@@ -56,6 +55,9 @@ model Project {
   updatedAt    DateTime @updatedAt
 
   campaigns    Campaign[]
+  audiences    Audience[]
+  positionings Positioning[]
+  creatives    Creative[]
 }
 
 // CAMPANHA - Campanhas do projeto
@@ -98,6 +100,68 @@ model Product {
 
   clientId    String
   client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// PÚBLICO (AUDIENCE) - Segmentações de público
+model Audience {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+
+  // Dados demográficos
+  ageMin      Int?
+  ageMax      Int?
+  gender      String?  // "M", "F", "All"
+  location    String?  // País, Estado, Cidade
+  interests   String?  // JSON array de interesses
+  behaviors   String?  // JSON array de comportamentos
+
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// POSICIONAMENTO - Mensagens e valores propostos
+model Positioning {
+  id          String   @id @default(cuid())
+  name        String
+  tagline     String   // Frase curta (ex: "Moda sustentável")
+  mainMessage String   @db.Text // Mensagem principal
+  values      String   @db.Text // JSON array com valores
+  tone        String   // "profissional", "casual", "divertido", etc
+
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// CRIATIVO - Imagens, vídeos, copy
+model Creative {
+  id          String   @id @default(cuid())
+  title       String
+  type        String   // "image", "video", "carousel", "text"
+
+  // Conteúdo
+  headline    String   // Título do anúncio
+  description String?  @db.Text // Descrição
+  callToAction String   // CTA (ex: "Compre agora", "Saiba mais")
+
+  // Mídia
+  imageUrl    String?  // URL da imagem
+  videoUrl    String?  // URL do vídeo
+
+  // Performance
+  status      String   @default("draft") // "draft", "active", "archived"
+
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
