@@ -1,0 +1,53 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      String   @default("client") // "admin", "client", "manager"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Campaign {
+  id           String   @id @default(cuid())
+  name         String
+  status       String   @default("ACTIVE") // "ACTIVE", "PAUSED", "ARCHIVED"
+  budget       Float
+  metaCampaignId String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  metrics      Metric[]
+}
+
+model Metric {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  date       DateTime
+  reach      Int      @default(0)
+  clicks     Int      @default(0)
+  conversions Int     @default(0)
+  spend      Float    @default(0)
+  createdAt  DateTime @default(now())
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  type        String   // "product", "service"
+  price       Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
