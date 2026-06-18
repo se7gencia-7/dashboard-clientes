@@ -10,26 +10,72 @@ datasource db {
   url       = env("DATABASE_URL")
 }
 
-model User {
+// CLIENTE - A empresa que usa o dashboard
+model Client {
   id        String   @id @default(cuid())
+  name      String   // Nome da empresa
   email     String   @unique
-  name      String
-  role      String   @default("client") // "admin", "client", "manager"
+  logo      String?  // URL da logo
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Relações
+  users     User[]
+  projects  Project[]
+  products  Product[]
 }
 
+// USUÁRIO - Pessoa que acessa o dashboard
+model User {
+  id        String   @id @default(cuid())
+  email     String
+  password  String   @db.Text
+  name      String
+  role      String   @default("member") // "admin", "manager", "member"
+
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([email, clientId]) // Email único por cliente
+}
+
+// PROJETO - Projeto de anúncios do cliente
+model Project {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  status       String   @default("ACTIVE")
+
+  clientId     String
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  campaigns    Campaign[]
+}
+
+// CAMPANHA - Campanhas do projeto
 model Campaign {
   id           String   @id @default(cuid())
   name         String
-  status       String   @default("ACTIVE") // "ACTIVE", "PAUSED", "ARCHIVED"
+  status       String   @default("ACTIVE")
   budget       Float
   metaCampaignId String?
+
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
   metrics      Metric[]
 }
 
+// MÉTRICA - Performance da campanha
 model Metric {
   id         String   @id @default(cuid())
   campaignId String
@@ -42,12 +88,17 @@ model Metric {
   createdAt  DateTime @default(now())
 }
 
+// PRODUTO - Produtos/Serviços do cliente
 model Product {
   id          String   @id @default(cuid())
   name        String
-  description String
+  description String?
   type        String   // "product", "service"
   price       Float
+
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
