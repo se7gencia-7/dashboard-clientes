@@ -7,12 +7,12 @@ import {
 } from 'recharts';
 import { Download, Settings2, RefreshCw } from 'lucide-react';
 
-// ── Mock Data ────────────────────────────────────────────────────────────────
+// ── Mock Data (substituído por dados reais via API após auth) ─────────────────
 
 const PROJECTS = [
-  { id: 'dunamis',    name: 'Dunamis Club',              type: 'leads'  },
-  { id: 'livro',      name: 'Lançamento Livro Paulo',     type: 'vendas' },
-  { id: 'aniversario',name: 'Aniversário E-commerce',     type: 'vendas' },
+  { id: 'projeto_a', name: 'Projeto A', type: 'leads'  },
+  { id: 'projeto_b', name: 'Projeto B', type: 'vendas' },
+  { id: 'projeto_c', name: 'Projeto C', type: 'vendas' },
 ];
 
 const PLATFORMS = ['Meta Ads', 'Google Ads', 'TikTok Ads', 'GA4'];
@@ -69,21 +69,21 @@ const METRIC_LINES = [
 ];
 
 const CAMPAIGNS: Record<string, any[]> = {
-  dunamis: [
-    { name:'DUN | [TOPO] Interesse - Geral',            status:'ATIVO',   spend:'R$ 3.240', leads:218, cpl:'R$ 14,86', ctr:'3,2%' },
-    { name:'DUN | [MEIO] Retargeting - Engajados',      status:'ATIVO',   spend:'R$ 2.180', leads:187, cpl:'R$ 11,66', ctr:'4,8%' },
-    { name:'DUN | [FUNDO] Lookalike - Compradores',     status:'ATIVO',   spend:'R$ 4.120', leads:312, cpl:'R$ 13,21', ctr:'3,9%' },
-    { name:'DUN | [TOPO] Interesse - Cristãos',         status:'PAUSADO', spend:'R$ 2.910', leads:126, cpl:'R$ 23,10', ctr:'2,1%' },
+  projeto_a: [
+    { name:'PRJ-A | [TOPO] Interesse - Geral',          status:'ATIVO',   spend:'R$ 3.240', leads:218, cpl:'R$ 14,86', ctr:'3,2%' },
+    { name:'PRJ-A | [MEIO] Retargeting - Engajados',    status:'ATIVO',   spend:'R$ 2.180', leads:187, cpl:'R$ 11,66', ctr:'4,8%' },
+    { name:'PRJ-A | [FUNDO] Lookalike - Compradores',   status:'ATIVO',   spend:'R$ 4.120', leads:312, cpl:'R$ 13,21', ctr:'3,9%' },
+    { name:'PRJ-A | [TOPO] Interesse - Segmento X',     status:'PAUSADO', spend:'R$ 2.910', leads:126, cpl:'R$ 23,10', ctr:'2,1%' },
   ],
-  livro: [
-    { name:'LIV | [CONV] Compra Direta - LAL',          status:'ATIVO',   spend:'R$ 2.840', vendas:98,  cpa:'R$ 28,98', roas:'12,3x' },
-    { name:'LIV | [CONV] Retargeting - Visitantes',     status:'ATIVO',   spend:'R$ 1.960', vendas:87,  cpa:'R$ 22,53', roas:'14,8x' },
-    { name:'LIV | [CONV] Interesse - Livros',           status:'ATIVO',   spend:'R$ 3.520', vendas:49,  cpa:'R$ 71,84', roas:'5,2x'  },
+  projeto_b: [
+    { name:'PRJ-B | [CONV] Compra Direta - LAL',        status:'ATIVO',   spend:'R$ 2.840', vendas:98,  cpa:'R$ 28,98', roas:'12,3x' },
+    { name:'PRJ-B | [CONV] Retargeting - Visitantes',   status:'ATIVO',   spend:'R$ 1.960', vendas:87,  cpa:'R$ 22,53', roas:'14,8x' },
+    { name:'PRJ-B | [CONV] Interesse - Categoria',      status:'ATIVO',   spend:'R$ 3.520', vendas:49,  cpa:'R$ 71,84', roas:'5,2x'  },
   ],
-  aniversario: [
-    { name:'ANI | [CONV] Aniversário - Compradores',    status:'ATIVO',   spend:'R$ 3.100', vendas:112, cpa:'R$ 27,68', roas:'11,2x' },
-    { name:'ANI | [CONV] Retargeting - Carrinho',       status:'ATIVO',   spend:'R$ 2.240', vendas:89,  cpa:'R$ 25,17', roas:'13,4x' },
-    { name:'ANI | [TOPO] Novos Públicos',               status:'PAUSADO', spend:'R$ 1.800', vendas:33,  cpa:'R$ 54,55', roas:'4,8x'  },
+  projeto_c: [
+    { name:'PRJ-C | [CONV] Oferta Principal - LAL',     status:'ATIVO',   spend:'R$ 3.100', vendas:112, cpa:'R$ 27,68', roas:'11,2x' },
+    { name:'PRJ-C | [CONV] Retargeting - Carrinho',     status:'ATIVO',   spend:'R$ 2.240', vendas:89,  cpa:'R$ 25,17', roas:'13,4x' },
+    { name:'PRJ-C | [TOPO] Novos Públicos',             status:'PAUSADO', spend:'R$ 1.800', vendas:33,  cpa:'R$ 54,55', roas:'4,8x'  },
   ],
 };
 
@@ -115,9 +115,12 @@ const FUNNEL_BY_TYPE: Record<string, any[]> = {
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function DemoDashboard() {
-  const [activeProject,  setActiveProject]  = useState('dunamis');
+  const [activeProject,  setActiveProject]  = useState('projeto_a');
   const [activePlatform, setActivePlatform] = useState('Meta Ads');
   const [activeMetrics,  setActiveMetrics]  = useState(['custo','cliques','conversoes']);
+
+  // Em produção, vem do token JWT / API após autenticação
+  const clientName = 'Nome do Cliente';
 
   const project   = PROJECTS.find(p => p.id === activeProject)!;
   const kpis      = KPI_BY_TYPE[project.type];
@@ -139,7 +142,7 @@ export default function DemoDashboard() {
           {/* Row 1 */}
           <div className="flex items-center justify-between gap-4 py-4">
 
-            {/* Logo + cliente */}
+            {/* Logo + cliente (nome vem do banco após auth) */}
             <div className="flex items-center gap-3 shrink-0">
               <div className="flex items-center gap-0.5">
                 <span className="text-xl font-black tracking-tight text-black">Se7</span>
@@ -147,7 +150,7 @@ export default function DemoDashboard() {
                 <span className="text-xl font-black tracking-tight text-black">Gência</span>
               </div>
               <div className="w-px h-5 bg-gray-300" />
-              <span className="text-base font-semibold text-gray-800">4Ventos</span>
+              <span className="text-base font-semibold text-gray-800">{clientName}</span>
             </div>
 
             {/* Project selector */}
@@ -471,7 +474,7 @@ export default function DemoDashboard() {
 
         {/* Footer */}
         <p className="text-center text-xs text-gray-400 pb-4">
-          Se7.Gência Dashboard · Dados atualizados em 18/06/2025 16:06 · Versão demo
+          Se7.Gência Dashboard · Versão demonstração · Dados reais conectados após configuração
         </p>
 
       </main>

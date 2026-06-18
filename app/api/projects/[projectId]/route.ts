@@ -23,16 +23,18 @@ function verifyToken(request: NextRequest) {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
   const decoded = verifyToken(request);
   if (!decoded) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const { projectId } = await params;
+
   try {
     const project = await prisma.project.findUnique({
-      where: { id: params.projectId },
+      where: { id: projectId },
       include: { client: true },
     });
 
@@ -43,17 +45,17 @@ export async function GET(
     // Buscar dados relacionados
     const [campaigns, audiences, positionings, creatives] = await Promise.all([
       prisma.campaign.findMany({
-        where: { projectId: params.projectId },
+        where: { projectId },
         include: { metrics: true },
       }),
       prisma.audience.findMany({
-        where: { projectId: params.projectId },
+        where: { projectId },
       }),
       prisma.positioning.findMany({
-        where: { projectId: params.projectId },
+        where: { projectId },
       }),
       prisma.creative.findMany({
-        where: { projectId: params.projectId },
+        where: { projectId },
       }),
     ]);
 
