@@ -62,7 +62,6 @@ export async function POST(request: NextRequest) {
           data: {
             campaignId: campaign.id,
             date: new Date(insight.date_start),
-            impressions: parseInt(insight.impressions ?? '0', 10),
             reach: parseInt(insight.reach ?? '0', 10),
             clicks: parseInt(insight.clicks ?? '0', 10),
             spend: parseFloat(insight.spend ?? '0'),
