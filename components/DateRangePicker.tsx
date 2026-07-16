@@ -217,7 +217,7 @@ export default function DateRangePicker({ value, onChange }: Props) {
       {open && (
         <div
           className="absolute right-0 top-11 z-[200] rounded-2xl shadow-2xl overflow-hidden"
-          style={{ backgroundColor: CARD, border: `1px solid ${BORDER}`, width: 660 }}>
+          style={{ backgroundColor: CARD, border: `1px solid ${BORDER}`, width: 720 }}>
 
           {/* Presets grid */}
           <div className="grid grid-cols-2 gap-x-0 gap-y-0 p-2 border-b" style={{ borderColor: BORDER }}>
@@ -248,42 +248,48 @@ export default function DateRangePicker({ value, onChange }: Props) {
               .rdp-root {
                 --rdp-accent-color: ${RED};
                 --rdp-accent-background-color: rgba(232,0,28,0.18);
-                --rdp-day-height: 36px;
-                --rdp-day-width: 36px;
-                --rdp-day_button-height: 34px;
-                --rdp-day_button-width: 34px;
+                --rdp-day-height: 44px;
+                --rdp-day-width: 44px;
+                --rdp-day_button-height: 40px;
+                --rdp-day_button-width: 40px;
                 --rdp-selected-border: none;
                 color: #fff;
-                font-size: 13px;
+                font-size: 14px;
+                width: 100%;
               }
-              .rdp-month_caption { color: #fff; font-weight: 700; font-size: 14px; text-align: center; }
-              .rdp-weekday { color: ${MUTED}; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
-              .rdp-day { color: #fff; }
-              .rdp-day_button { border-radius: 50%; transition: background 0.15s; }
+              .rdp-months { display: flex; gap: 16px; width: 100%; }
+              .rdp-month  { flex: 1; }
+              .rdp-month_caption { color: #fff; font-weight: 700; font-size: 15px; text-align: center; padding-bottom: 8px; }
+              .rdp-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); }
+              .rdp-weekday  { color: ${MUTED}; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; text-align: center; padding: 4px 0; }
+              .rdp-week     { display: grid; grid-template-columns: repeat(7, 1fr); }
+              .rdp-day      { color: #fff; display: flex; align-items: center; justify-content: center; }
+              .rdp-day_button { border-radius: 50%; transition: background 0.15s; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
               .rdp-day:hover .rdp-day_button:not(:disabled) { background: rgba(255,255,255,0.1) !important; }
               .rdp-selected .rdp-day_button { background: ${RED} !important; color: #fff; border-radius: 50%; }
               .rdp-range_start .rdp-day_button { background: ${RED} !important; color: #fff; border-radius: 50%; }
-              .rdp-range_end .rdp-day_button { background: ${RED} !important; color: #fff; border-radius: 50%; }
+              .rdp-range_end .rdp-day_button   { background: ${RED} !important; color: #fff; border-radius: 50%; }
               .rdp-range_middle .rdp-day_button { background: rgba(232,0,28,0.15) !important; border-radius: 0 !important; }
               .rdp-range_start { border-radius: 50% 0 0 50%; }
               .rdp-range_end   { border-radius: 0 50% 50% 0; }
-              .rdp-outside { opacity: 0.25; }
+              .rdp-outside  { opacity: 0.25; }
               .rdp-disabled { opacity: 0.2; }
-              .rdp-nav { display: flex; align-items: center; justify-content: space-between; }
+              .rdp-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
               .rdp-button_previous, .rdp-button_next {
                 color: ${MUTED};
                 background: none;
                 border: none;
                 cursor: pointer;
                 border-radius: 6px;
-                padding: 4px;
+                padding: 6px;
                 transition: background 0.15s, color 0.15s;
+                display: flex;
+                align-items: center;
               }
               .rdp-button_previous:hover, .rdp-button_next:hover {
                 color: #fff;
                 background: rgba(255,255,255,0.08);
               }
-              .rdp-months { gap: 24px; }
             `}</style>
 
             <DayPicker
