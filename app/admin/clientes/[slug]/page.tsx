@@ -617,72 +617,47 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
         </div>
 
         {/* ── CAMPANHAS ─────────────────────────────────────────────────────── */}
-        {section === 'campanhas' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-            {/* Gráfico */}
-            <div className="rounded-lg p-5" style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}>
-              <div className="flex items-center gap-4 mb-1 flex-wrap">
-                {[
-                  { key: 'conv',   label: config.conversionLabel, color: '#fff'  },
-                  { key: 'invest', label: 'Investimento',          color: ORANGE  },
-                ].map(l => (
-                  <div key={l.key} className="flex items-center gap-1.5 text-xs" style={{ color: MUTED }}>
-                    <span className="w-6 h-px inline-block" style={{ backgroundColor: l.color }} />
-                    {l.label}
-                  </div>
-                ))}
-              </div>
-              <h3 className="text-white text-sm font-semibold mb-4">
-                {config.conversionLabel} × Investimento por dia
-              </h3>
-              {chartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={240}>
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={BORDER} />
-                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: MUTED }} />
-                    <YAxis tick={{ fontSize: 10, fill: MUTED }} />
-                    <Tooltip contentStyle={ttStyle} />
-                    <Line type="monotone" dataKey="conv"   stroke="#fff"  strokeWidth={1.5} dot={false} />
-                    <Line type="monotone" dataKey="invest" stroke={ORANGE} strokeWidth={1.5} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex items-center justify-center h-60 text-sm" style={{ color: MUTED }}>
-                  {loading ? 'Carregando...' : 'Sem dados no período'}
-                </div>
-              )}
-            </div>
-
-            {/* Tabela de campanhas */}
+        {section === 'campanhas' && (() => {
+          const [campSort, setCampSort] = [adsetSort, setAdsetSort]; // reuse adset sort state for campaigns
+          const sorted = sortRows(projCampInsights, adsetSort.field, adsetSort.dir);
+          const colSpan = isPurchase ? 9 : 7;
+          return (
             <div className="rounded-lg overflow-hidden" style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}>
               <div className="px-5 py-4" style={{ borderBottom: `1px solid ${BORDER}` }}>
                 <h3 className="text-white text-sm font-semibold">
                   Campanhas <span className="font-normal text-xs" style={{ color: MUTED }}>({projCampInsights.length})</span>
                 </h3>
               </div>
-              <div className="overflow-auto" style={{ maxHeight: 340 }}>
+              <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead className="sticky top-0" style={{ backgroundColor: '#1F1F1F' }}>
                     <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
-                      {['Campanha', 'Status', 'Investimento', 'Cliques', 'CTR', config.conversionLabel, 'CPL'].map(h => (
-                        <th key={h} className="px-4 py-3 text-left font-semibold whitespace-nowrap" style={{ color: MUTED }}>{h}</th>
-                      ))}
+                      <th className="px-4 py-3 text-left font-semibold whitespace-nowrap" style={{ color: MUTED }}>Campanha</th>
+                      <th className="px-4 py-3 text-left font-semibold whitespace-nowrap" style={{ color: MUTED }}>Status</th>
+                      <SortTh label="Investimento" field="spend"   sort={adsetSort} setSort={setAdsetSort} />
+                      <SortTh label="Cliques"      field="clicks"  sort={adsetSort} setSort={setAdsetSort} />
+                      <SortTh label="CTR"          field="ctr"     sort={adsetSort} setSort={setAdsetSort} />
+                      {isPurchase && <SortTh label="Init. Checkout" field="initiateCheckout" sort={adsetSort} setSort={setAdsetSort} />}
+                      <SortTh label={isPurchase ? 'Compras' : config.conversionLabel} field={isPurchase ? 'purchases' : 'conversions'} sort={adsetSort} setSort={setAdsetSort} />
+                      <th className="px-4 py-3 text-left font-semibold whitespace-nowrap" style={{ color: MUTED }}>
+                        {isPurchase ? 'Custo/Compra' : 'CPL'}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {projCampInsights.length === 0 && (
-                      <tr><td colSpan={7} className="px-4 py-6 text-center" style={{ color: MUTED }}>
+                    {sorted.length === 0 && (
+                      <tr><td colSpan={colSpan} className="px-4 py-6 text-center" style={{ color: MUTED }}>
                         {loading ? 'Carregando...' : 'Nenhuma campanha com gasto no período'}
                       </td></tr>
                     )}
-                    {projCampInsights.sort((a, b) => b.spend - a.spend).map((row, i) => {
-                      const rowCpa = row.conversions > 0 ? row.spend / row.conversions : 0;
-                      const camp   = campaigns.find(c => c.id === row.campaignId);
+                    {sorted.map((row, i) => {
+                      const divisor = isPurchase ? (row.purchases ?? 0) : row.conversions;
+                      const rowCpa  = divisor > 0 ? row.spend / divisor : 0;
+                      const camp    = campaigns.find(c => c.id === row.campaignId);
                       return (
                         <tr key={i} className="hover:bg-white/5 transition"
-                          style={{ borderBottom: i < projCampInsights.length - 1 ? `1px solid ${BORDER}` : 'none' }}>
-                          <td className="px-4 py-3 max-w-[200px]">
+                          style={{ borderBottom: i < sorted.length - 1 ? `1px solid ${BORDER}` : 'none' }}>
+                          <td className="px-4 py-3 max-w-[260px]">
                             <p className="text-white font-medium text-xs truncate" title={row.campaignName}>
                               {cleanName(row.campaignName ?? '')}
                             </p>
@@ -691,14 +666,21 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
                           <td className="px-4 py-3"><InvBar value={row.spend} max={maxSpend} /></td>
                           <td className="px-4 py-3 text-white tabular-nums">{fmt.num(row.clicks)}</td>
                           <td className="px-4 py-3 tabular-nums" style={{ color: MUTED }}>{fmt.pct(row.ctr)}</td>
-                          <td className="px-4 py-3"><LeadCell v={row.conversions} label={config.conversionLabel} /></td>
+                          {isPurchase && (
+                            <td className="px-4 py-3">
+                              <LeadCell v={row.initiateCheckout ?? 0} label="Init. Checkout" />
+                            </td>
+                          )}
+                          <td className="px-4 py-3">
+                            <LeadCell v={isPurchase ? (row.purchases ?? 0) : row.conversions} label={config.conversionLabel} />
+                          </td>
                           <td className="px-4 py-3" style={{ color: rowCpa > 0 ? GREEN : MUTED }}>
                             {rowCpa > 0 ? fmt.brl(rowCpa) : '—'}
                           </td>
                         </tr>
                       );
                     })}
-                    {projCampInsights.length > 0 && (
+                    {sorted.length > 0 && (
                       <tr style={{ backgroundColor: '#1F1F1F' }}>
                         <td className="px-4 py-3 font-bold text-white" colSpan={2}>Total</td>
                         <td className="px-4 py-3 font-bold text-white">{fmt.brl(totals.spend)}</td>
@@ -706,7 +688,12 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
                         <td className="px-4 py-3 font-bold text-white">
                           {fmt.pct(totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0)}
                         </td>
-                        <td className="px-4 py-3 font-bold" style={{ color: GREEN }}>{fmt.num(totals.conversions)}</td>
+                        {isPurchase && (
+                          <td className="px-4 py-3 font-bold" style={{ color: GREEN }}>{fmt.num(totals.initiateCheckout)}</td>
+                        )}
+                        <td className="px-4 py-3 font-bold" style={{ color: GREEN }}>
+                          {fmt.num(isPurchase ? totals.purchases : totals.conversions)}
+                        </td>
                         <td className="px-4 py-3 font-bold" style={{ color: GREEN }}>{cpa > 0 ? fmt.brl(cpa) : '—'}</td>
                       </tr>
                     )}
@@ -714,8 +701,8 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
                 </table>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ── CONJUNTOS ─────────────────────────────────────────────────────── */}
         {section === 'conjuntos' && (
