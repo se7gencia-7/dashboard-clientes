@@ -1,80 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { rpc, userExists } from '@/lib/db';
 
-const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+function cuid() {
+  return 'c' + Math.random().toString(36).slice(2, 11) + Date.now().toString(36);
+}
 
 export async function POST(request: NextRequest) {
   try {
     const { clientName, email, password, userName } = await request.json();
 
     if (!clientName || !email || !password || !userName) {
-      return NextResponse.json(
-        { error: 'Todos os campos são obrigatórios' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Todos os campos são obrigatórios' }, { status: 400 });
     }
 
-    // Verificar se email já existe
-    const existingUser = await prisma.user.findFirst({
-      where: { email },
-    });
-
-    if (existingUser) {
-      return NextResponse.json(
-        { error: 'Email já cadastrado' },
-        { status: 400 }
-      );
+    if (await userExists(email)) {
+      return NextResponse.json({ error: 'Email já cadastrado' }, { status: 400 });
     }
 
-    // Hash da senha
     const hashedPassword = await bcrypt.hash(password, 10);
+    const clientId = cuid();
+    const userId   = cuid();
 
-    // Criar cliente
-    const client = await prisma.client.create({
-      data: {
-        name: clientName,
-        email: email,
-      },
+    const { data, error } = await rpc('create_client_and_user', {
+      p_client_id:     clientId,
+      p_client_name:   clientName,
+      p_client_email:  email,
+      p_user_id:       userId,
+      p_user_email:    email,
+      p_user_password: hashedPassword,
+      p_user_name:     userName,
     });
 
-    // Criar usuário admin
-    const user = await prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        name: userName,
-        role: 'admin',
-        clientId: client.id,
-      },
-    });
+    if (error) throw new Error(error.message);
 
-    // Gerar token JWT
     const token = jwt.sign(
-      {
-        userId: user.id,
-        clientId: client.id,
-        email: user.email,
-      },
+      { userId: (data as { userId: string }).userId, clientId, email },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    return NextResponse.json(
-      {
-        token,
-        clientId: client.id,
-        message: 'Conta criada com sucesso!',
-      },
-      { status: 201 }
-    );
+    return NextResponse.json({ token, clientId, message: 'Conta criada com sucesso!' }, { status: 201 });
   } catch (error) {
-    console.error('Signup error:', error);
-    return NextResponse.json(
-      { error: 'Erro ao criar conta' },
-      { status: 500 }
-    );
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('Signup error:', msg);
+    return NextResponse.json({ error: 'Erro ao criar conta', debug: msg }, { status: 500 });
   }
 }

@@ -58,17 +58,36 @@ export interface InsightsParams {
 
 // ── Core fetch ────────────────────────────────────────────────────────────────
 
-async function metaGet<T>(path: string, params: Record<string, string>): Promise<T> {
-  const url = new URL(`${META_BASE_URL}/${path}`);
-  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+// Follows paging cursors to fetch all results (up to maxPages)
+async function paginatedFetch<T>(
+  path: string,
+  params: Record<string, string>,
+  maxPages = 10
+): Promise<T[]> {
+  const results: T[] = [];
+  let nextUrl: string | null = null;
+  let page = 0;
 
-  const res = await fetch(url.toString(), { next: { revalidate: 300 } });
-  const json = await res.json();
+  const firstUrl = new URL(`${META_BASE_URL}/${path}`);
+  Object.entries(params).forEach(([k, v]) => firstUrl.searchParams.set(k, v));
+  let currentUrl = firstUrl.toString();
 
-  if (json.error) {
-    throw new Error(`Meta API ${json.error.code}: ${json.error.message}`);
+  while (page < maxPages) {
+    const res  = await fetch(currentUrl, { next: { revalidate: 300 } });
+    const json = await res.json();
+
+    if (json.error) {
+      throw new Error(`Meta API ${json.error.code}: ${json.error.message}`);
+    }
+
+    results.push(...(json.data ?? []));
+    nextUrl = json.paging?.next ?? null;
+    if (!nextUrl) break;
+    currentUrl = nextUrl;
+    page++;
   }
-  return json as T;
+
+  return results;
 }
 
 // ── Public helpers ────────────────────────────────────────────────────────────
@@ -77,7 +96,7 @@ export async function fetchMetaCampaigns(
   adAccountId: string,
   accessToken: string
 ): Promise<MetaCampaign[]> {
-  const data = await metaGet<{ data: MetaCampaign[] }>(
+  return paginatedFetch<MetaCampaign>(
     `act_${adAccountId}/campaigns`,
     {
       fields: 'id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time',
@@ -85,7 +104,6 @@ export async function fetchMetaCampaigns(
       limit: '200',
     }
   );
-  return data.data;
 }
 
 export async function fetchMetaAdSets(
@@ -103,11 +121,10 @@ export async function fetchMetaAdSets(
       { field: 'campaign.id', operator: 'IN', value: campaignIds },
     ]);
   }
-  const data = await metaGet<{ data: MetaAdSet[] }>(
+  return paginatedFetch<MetaAdSet>(
     `act_${adAccountId}/adsets`,
-    params
+    { ...params, limit: '200' }
   );
-  return data.data;
 }
 
 export async function fetchMetaInsights(params: InsightsParams): Promise<MetaInsight[]> {
@@ -151,23 +168,37 @@ export async function fetchMetaInsights(params: InsightsParams): Promise<MetaIns
     ]);
   }
 
-  const data = await metaGet<{ data: MetaInsight[] }>(
+  return paginatedFetch<MetaInsight>(
     `act_${adAccountId}/insights`,
-    queryParams
+    { ...queryParams, limit: '200' }
   );
-  return data.data ?? [];
 }
+
+export function getLandingPageViews(insight: MetaInsight): number {
+  if (!insight.actions) return 0;
+  const lp = insight.actions.find((a) => a.action_type === 'landing_page_view');
+  return lp ? parseInt(lp.value, 10) : 0;
+}
+
+const LEAD_ACTION_TYPES = new Set([
+  'lead',
+  'onsite_conversion.lead_grouped',
+  'offsite_conversion.fb_pixel_lead',
+  'leadgen.other',
+  'contact',
+  'schedule',
+  'submit_application',
+  'complete_registration',
+]);
 
 export function getConversions(insight: MetaInsight): number {
   if (!insight.actions) return 0;
-  const conv = insight.actions.find(
-    (a) =>
-      a.action_type === 'lead' ||
-      a.action_type === 'purchase' ||
-      a.action_type === 'offsite_conversion.fb_pixel_lead' ||
-      a.action_type === 'offsite_conversion.fb_pixel_purchase'
-  );
-  return conv ? parseInt(conv.value, 10) : 0;
+  // Use the most specific aggregate type when available; otherwise sum individual types
+  const grouped = insight.actions.find(a => a.action_type === 'onsite_conversion.lead_grouped');
+  if (grouped) return parseInt(grouped.value, 10);
+  return insight.actions
+    .filter(a => LEAD_ACTION_TYPES.has(a.action_type))
+    .reduce((sum, a) => sum + parseInt(a.value, 10), 0);
 }
 
 export function getPurchases(insight: MetaInsight): number {
@@ -176,4 +207,12 @@ export function getPurchases(insight: MetaInsight): number {
     (a) => a.action_type === 'purchase' || a.action_type === 'offsite_conversion.fb_pixel_purchase'
   );
   return p ? parseInt(p.value, 10) : 0;
+}
+
+export function getInitiateCheckout(insight: MetaInsight): number {
+  if (!insight.actions) return 0;
+  const c = insight.actions.find(
+    (a) => a.action_type === 'initiate_checkout' || a.action_type === 'offsite_conversion.fb_pixel_initiate_checkout'
+  );
+  return c ? parseInt(c.value, 10) : 0;
 }

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { fetchMetaCampaigns } from '@/lib/meta-api';
 
 export async function GET(request: NextRequest) {
-  const adAccountId = process.env.META_AD_ACCOUNT_ID;
+  const { searchParams } = new URL(request.url);
+  const adAccountId = searchParams.get('account_id') ?? process.env.META_AD_ACCOUNT_ID;
   const accessToken = process.env.META_ACCESS_TOKEN;
 
   if (!adAccountId || !accessToken) {
