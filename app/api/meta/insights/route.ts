@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchMetaInsights, getConversions, getPurchases, getInitiateCheckout, getLandingPageViews, InsightLevel } from '@/lib/meta-api';
+import { fetchMetaInsights, getConversions, getPurchases, getInitiateCheckout, getMessages, getLandingPageViews, InsightLevel } from '@/lib/meta-api';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -48,6 +48,7 @@ export async function GET(request: NextRequest) {
       conversions:       getConversions(item),
       purchases:         getPurchases(item),
       initiateCheckout:  getInitiateCheckout(item),
+      messages:          getMessages(item),
       landingPageViews:  getLandingPageViews(item),
       dateStart:        item.date_start,
       dateStop:         item.date_stop,
@@ -62,8 +63,9 @@ export async function GET(request: NextRequest) {
         conversions:      acc.conversions      + i.conversions,
         purchases:        acc.purchases        + i.purchases,
         initiateCheckout: acc.initiateCheckout + i.initiateCheckout,
+        messages:         acc.messages         + i.messages,
       }),
-      { impressions: 0, reach: 0, clicks: 0, spend: 0, conversions: 0, purchases: 0, initiateCheckout: 0 }
+      { impressions: 0, reach: 0, clicks: 0, spend: 0, conversions: 0, purchases: 0, initiateCheckout: 0, messages: 0 }
     );
 
     return NextResponse.json({ insights, totals });

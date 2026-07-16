@@ -55,8 +55,9 @@ interface Totals {
   conversions:      number;
   purchases:        number;
   initiateCheckout: number;
+  messages:         number;
   landingPageViews: number;
-  frequency:        number; // averaged
+  frequency:        number;
 }
 
 interface InsightRow {
@@ -77,6 +78,7 @@ interface InsightRow {
   conversions:       number;
   purchases:         number;
   initiateCheckout:  number;
+  messages:          number;
   landingPageViews:  number;
   dateStart:         string;
   dateStop:          string;
@@ -118,6 +120,7 @@ function sortRows(rows: InsightRow[], field: string, dir: SortDir): InsightRow[]
     switch (field) {
       case 'purchases':        return r.purchases        ?? 0;
       case 'initiateCheckout': return r.initiateCheckout ?? 0;
+      case 'messages':         return r.messages         ?? 0;
       case 'conversions':      return r.conversions;
       case 'clicks':           return r.clicks;
       case 'ctr':              return r.ctr;
@@ -164,6 +167,8 @@ function computeMetric(id: MetricId, totals: Totals, campCount: number): number 
     case 'cpm':              return totals.impressions > 0 ? (totals.spend / totals.impressions) * 1000 : 0;
     case 'connect_rate':     return totals.clicks > 0 ? (totals.landingPageViews / totals.clicks) * 100 : 0;
     case 'checkout_rate':    return totals.initiateCheckout > 0 ? (totals.purchases / totals.initiateCheckout) * 100 : 0;
+    case 'messages':         return totals.messages;
+    case 'cpm_msg':          return totals.messages > 0 ? totals.spend / totals.messages : 0;
     case 'cpa':              return totals.conversions > 0 ? totals.spend / totals.conversions : 0;
     case 'revenue':          return 0;
     case 'roas':             return 0;
@@ -292,8 +297,7 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
   const [subLoading, setSubLoading] = useState(false);
   const [error,      setError]      = useState('');
 
-  const isPurchase  = config?.conversionType === 'purchase';
-  const defaultSort = isPurchase ? 'purchases' : 'spend';
+  const defaultSort = 'spend';
 
   const [campSort,  setCampSort]  = useState<SortState>({ field: defaultSort, dir: 'desc' });
   const [adsetSort, setAdsetSort] = useState<SortState>({ field: defaultSort, dir: 'desc' });
@@ -412,10 +416,11 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
       conversions:      acc.conversions      + i.conversions,
       purchases:        acc.purchases        + (i.purchases        ?? 0),
       initiateCheckout: acc.initiateCheckout + (i.initiateCheckout ?? 0),
+      messages:         acc.messages         + (i.messages         ?? 0),
       landingPageViews: acc.landingPageViews + i.landingPageViews,
       frequency:        acc.frequency        + i.frequency,
     }),
-    { impressions: 0, reach: 0, clicks: 0, spend: 0, conversions: 0, purchases: 0, initiateCheckout: 0, landingPageViews: 0, frequency: 0 }
+    { impressions: 0, reach: 0, clicks: 0, spend: 0, conversions: 0, purchases: 0, initiateCheckout: 0, messages: 0, landingPageViews: 0, frequency: 0 }
   );
 
   // ── Daily chart data ─────────────────────────────────────────────────────────
@@ -433,16 +438,27 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, d]) => ({ date: date.slice(5), invest: d.spend, conv: d.conversions, clicks: d.clicks }));
 
+  // ── Active funnel — per-project overrides account-level ─────────────────────
+  const activeFunnel          = activeProject?.funnel          ?? config.funnel;
+  const activeConvType        = activeProject?.conversionType  ?? config.conversionType;
+  const activeConvLabel       = activeProject?.conversionLabel ?? config.conversionLabel;
+  const activeGoal            = activeProject?.goal            ?? config.goal;
+
   // ── Funnel values ────────────────────────────────────────────────────────────
-  const funnelValues = config.funnel.map(step => ({
+  const funnelValues = activeFunnel.map(step => ({
     ...step,
     computed: computeMetric(step.metric, totals, projCampInsights.length),
   }));
 
   // ── Goal check ───────────────────────────────────────────────────────────────
-  const convDivisor = isPurchase ? totals.purchases : totals.conversions;
-  const cpa     = convDivisor > 0 ? totals.spend / convDivisor : 0;
-  const goalOk  = config.goal ? cpa <= config.goal.value : null;
+  const convDivisor  = activeConvType === 'purchase' ? totals.purchases
+                     : activeConvType === 'message'  ? totals.messages
+                     : totals.conversions;
+  const cpa          = convDivisor > 0 ? totals.spend / convDivisor : 0;
+  const goalOk       = activeGoal ? cpa <= activeGoal.value : null;
+  const isPurchase   = activeConvType === 'purchase';
+  const isMessage    = activeConvType === 'message';
+  const convField    = isPurchase ? 'purchases' : isMessage ? 'messages' : 'conversions';
 
   const maxSpend      = projCampInsights[0]?.spend ?? 1;
   const maxAdsetSpend = adsetInsights[0]?.spend ?? 1;
@@ -562,17 +578,17 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
         <div>
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: MUTED }}>
-              Funil — {config.conversionLabel}
+              Funil — {activeConvLabel}
             </p>
-            {config.goal && !loading && cpa > 0 && (
+            {activeGoal && !loading && cpa > 0 && (
               <div className="flex items-center gap-2">
-                <span className="text-xs" style={{ color: MUTED }}>Meta: {fmt.brl(config.goal.value)}</span>
+                <span className="text-xs" style={{ color: MUTED }}>Meta: {fmt.brl(activeGoal.value)}</span>
                 <span className="text-xs font-bold px-2 py-0.5 rounded"
                   style={{
                     backgroundColor: goalOk ? 'rgba(34,197,94,0.15)' : 'rgba(232,0,28,0.15)',
                     color: goalOk ? GREEN : RED,
                   }}>
-                  {goalOk ? '✓ Dentro da meta' : `${((cpa / config.goal.value - 1) * 100).toFixed(0)}% acima`}
+                  {goalOk ? '✓ Dentro da meta' : `${((cpa / activeGoal.value - 1) * 100).toFixed(0)}% acima`}
                 </span>
               </div>
             )}
@@ -631,9 +647,9 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
                     <SortTh label="Cliques"      field="clicks"  sort={campSort} setSort={setCampSort} />
                     <SortTh label="CTR"          field="ctr"     sort={campSort} setSort={setCampSort} />
                     {isPurchase && <SortTh label="Init. Checkout" field="initiateCheckout" sort={campSort} setSort={setCampSort} />}
-                    <SortTh label={isPurchase ? 'Compras' : config.conversionLabel} field={isPurchase ? 'purchases' : 'conversions'} sort={campSort} setSort={setCampSort} />
+                    <SortTh label={activeConvLabel} field={convField} sort={campSort} setSort={setCampSort} />
                     <th className="px-4 py-3 text-left font-semibold whitespace-nowrap" style={{ color: MUTED }}>
-                      {isPurchase ? 'Custo/Compra' : 'CPL'}
+                      {isPurchase ? 'Custo/Compra' : isMessage ? 'Custo/Msg' : 'CPL'}
                     </th>
                   </tr>
                 </thead>
@@ -644,9 +660,9 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
                     </td></tr>
                   )}
                   {sortRows(projCampInsights, campSort.field, campSort.dir).map((row, i) => {
-                    const divisor = isPurchase ? (row.purchases ?? 0) : row.conversions;
-                    const rowCpa  = divisor > 0 ? row.spend / divisor : 0;
-                    const camp    = campaigns.find(c => c.id === row.campaignId);
+                    const rowDiv = isPurchase ? (row.purchases ?? 0) : isMessage ? (row.messages ?? 0) : row.conversions;
+                    const rowCpa = rowDiv > 0 ? row.spend / rowDiv : 0;
+                    const camp   = campaigns.find(c => c.id === row.campaignId);
                     return (
                       <tr key={i} className="hover:bg-white/5 transition"
                         style={{ borderBottom: `1px solid ${BORDER}` }}>
@@ -665,7 +681,7 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
                           </td>
                         )}
                         <td className="px-4 py-3">
-                          <LeadCell v={isPurchase ? (row.purchases ?? 0) : row.conversions} label={config.conversionLabel} />
+                          <LeadCell v={rowDiv} label={activeConvLabel} />
                         </td>
                         <td className="px-4 py-3" style={{ color: rowCpa > 0 ? GREEN : MUTED }}>
                           {rowCpa > 0 ? fmt.brl(rowCpa) : '—'}
@@ -685,7 +701,7 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
                         <td className="px-4 py-3 font-bold" style={{ color: GREEN }}>{fmt.num(totals.initiateCheckout)}</td>
                       )}
                       <td className="px-4 py-3 font-bold" style={{ color: GREEN }}>
-                        {fmt.num(isPurchase ? totals.purchases : totals.conversions)}
+                        {fmt.num(convDivisor)}
                       </td>
                       <td className="px-4 py-3 font-bold" style={{ color: GREEN }}>{cpa > 0 ? fmt.brl(cpa) : '—'}</td>
                     </tr>
@@ -716,9 +732,9 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
                     <SortTh label="CTR"             field="ctr"              sort={adsetSort} setSort={setAdsetSort} />
                     <SortTh label="CPM"             field="cpm"              sort={adsetSort} setSort={setAdsetSort} />
                     {isPurchase && <SortTh label="Init. Checkout" field="initiateCheckout" sort={adsetSort} setSort={setAdsetSort} />}
-                    <SortTh label={isPurchase ? 'Compras' : config.conversionLabel} field={isPurchase ? 'purchases' : 'conversions'} sort={adsetSort} setSort={setAdsetSort} />
+                    <SortTh label={activeConvLabel} field={convField} sort={adsetSort} setSort={setAdsetSort} />
                     <th className="px-4 py-3 text-left font-semibold whitespace-nowrap" style={{ color: MUTED }}>
-                      {isPurchase ? 'Custo/Compra' : 'CPL'}
+                      {isPurchase ? 'Custo/Compra' : isMessage ? 'Custo/Msg' : 'CPL'}
                     </th>
                   </tr>
                 </thead>
@@ -729,8 +745,8 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
                     </td></tr>
                   )}
                   {sortRows(adsetInsights, adsetSort.field, adsetSort.dir).map((row, i) => {
-                    const divisor = isPurchase ? (row.purchases ?? 0) : row.conversions;
-                    const rowCpa  = divisor > 0 ? row.spend / divisor : 0;
+                    const rowDiv = isPurchase ? (row.purchases ?? 0) : isMessage ? (row.messages ?? 0) : row.conversions;
+                    const rowCpa = rowDiv > 0 ? row.spend / rowDiv : 0;
                     return (
                       <tr key={i} className="hover:bg-white/5 transition"
                         style={{ borderBottom: i < adsetInsights.length - 1 ? `1px solid ${BORDER}` : 'none' }}>
@@ -754,7 +770,7 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
                           </td>
                         )}
                         <td className="px-4 py-3">
-                          <LeadCell v={isPurchase ? (row.purchases ?? 0) : row.conversions} label={config.conversionLabel} />
+                          <LeadCell v={rowDiv} label={activeConvLabel} />
                         </td>
                         <td className="px-4 py-3" style={{ color: rowCpa > 0 ? GREEN : MUTED }}>
                           {rowCpa > 0 ? fmt.brl(rowCpa) : '—'}
@@ -796,9 +812,9 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
                       ? <SortTh label="Init. Checkout" field="initiateCheckout" sort={adSort} setSort={setAdSort} />
                       : <th className="px-4 py-3 text-left font-semibold whitespace-nowrap" style={{ color: MUTED }}>Connect%</th>
                     }
-                    <SortTh label={isPurchase ? 'Compras' : config.conversionLabel} field={isPurchase ? 'purchases' : 'conversions'} sort={adSort} setSort={setAdSort} />
+                    <SortTh label={activeConvLabel} field={convField} sort={adSort} setSort={setAdSort} />
                     <th className="px-4 py-3 text-left font-semibold whitespace-nowrap" style={{ color: MUTED }}>
-                      {isPurchase ? 'Custo/Compra' : 'CPL'}
+                      {isPurchase ? 'Custo/Compra' : isMessage ? 'Custo/Msg' : 'CPL'}
                     </th>
                     <SortTh label="Investimento" field="spend"            sort={adSort} setSort={setAdSort} />
                   </tr>
@@ -810,8 +826,8 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
                     </td></tr>
                   )}
                   {sortRows(adInsights, adSort.field, adSort.dir).map((row, i) => {
-                    const divisor = isPurchase ? (row.purchases ?? 0) : row.conversions;
-                    const rowCpa  = divisor > 0 ? row.spend / divisor : 0;
+                    const rowDiv = isPurchase ? (row.purchases ?? 0) : isMessage ? (row.messages ?? 0) : row.conversions;
+                    const rowCpa = rowDiv > 0 ? row.spend / rowDiv : 0;
                     const rowCr   = row.clicks > 0 ? (row.landingPageViews / row.clicks) * 100 : 0;
                     const ad      = row.adId ? adsMap[row.adId] : undefined;
                     const isVid   = !!ad?.creative?.video_id;
@@ -839,7 +855,7 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
                             </td>
                         }
                         <td className="px-4 py-3">
-                          <LeadCell v={isPurchase ? (row.purchases ?? 0) : row.conversions} label={config.conversionLabel} />
+                          <LeadCell v={rowDiv} label={activeConvLabel} />
                         </td>
                         <td className="px-4 py-3" style={{ color: rowCpa > 0 ? GREEN : MUTED }}>
                           {rowCpa > 0 ? fmt.brl(rowCpa) : '—'}

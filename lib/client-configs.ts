@@ -17,30 +17,37 @@ export type MetricId =
   | 'purchases'
   | 'initiate_checkout'
   | 'checkout_rate'
+  | 'messages'
+  | 'cpm_msg'
   | 'revenue'
   | 'roas';
 
 export interface FunnelStep {
   metric:  MetricId;
-  label:   string;   // label customizado para o cliente
-  color:   string;   // cor do passo no funil
+  label:   string;
+  color:   string;
   format?: 'brl' | 'pct' | 'num' | 'x' | 'brl_per_unit';
 }
 
 export interface ProjectSplit {
-  id:       string;
-  name:     string;
-  patterns: string[]; // [] = todas as campanhas
+  id:               string;
+  name:             string;
+  patterns:         string[];        // [] = todas as campanhas
+  // funil próprio — sobrescreve o account-level quando definido
+  conversionType?:  'lead' | 'purchase' | 'message';
+  conversionLabel?: string;
+  funnel?:          FunnelStep[];
+  goal?:            { label: string; value: number };
 }
 
 export interface ClientConfig {
-  accountId:        string;          // sem 'act_'
+  accountId:        string;
   name:             string;
-  slug:             string;          // usado na URL /admin/clientes/[slug]
-  conversionLabel:  string;          // "Leads" | "Matrículas" | "Compras"
-  conversionType:   'lead' | 'purchase';
+  slug:             string;
+  conversionLabel:  string;
+  conversionType:   'lead' | 'purchase' | 'message';
   funnel:           FunnelStep[];
-  goal?:            { label: string; value: number }; // ex: CPL alvo
+  goal?:            { label: string; value: number };
   projects?:        ProjectSplit[];
   currency?:        'BRL' | 'USD' | 'EUR';
 }
@@ -292,6 +299,58 @@ export const CLIENT_CONFIGS: ClientConfig[] = [
       { metric: 'purchases',         label: 'Compras',           color: GREEN,  format: 'num' },
       { metric: 'cpa',               label: 'Custo/Compra',      color: GREEN,  format: 'brl' },
       { metric: 'spend',             label: 'Investimento',      color: TEAL,   format: 'brl' },
+    ],
+  },
+
+  // ── Fazenda Santa Rita ────────────────────────────────────────────────────────
+  {
+    accountId:       '478620385553426',
+    name:            'Fazenda Santa Rita',
+    slug:            'fazenda-santa-rita',
+    conversionLabel: 'Conversões',
+    conversionType:  'lead',
+    goal:            { label: 'Custo por Conversão', value: 50 },
+    projects: [
+      {
+        id:              'vendas',
+        name:            'Vendas',
+        patterns:        ['VENDAS', 'VENDA'],
+        conversionType:  'purchase',
+        conversionLabel: 'Compras',
+        goal:            { label: 'Custo por Compra', value: 80 },
+        funnel: [
+          { metric: 'clicks',            label: 'Cliques',           color: BLUE,   format: 'num' },
+          { metric: 'ctr',               label: 'CTR',               color: BLUE,   format: 'pct' },
+          { metric: 'cpm',               label: 'CPM',               color: PURPLE, format: 'brl' },
+          { metric: 'lpv',               label: 'Viz. de Página',    color: ORANGE, format: 'num' },
+          { metric: 'initiate_checkout', label: 'Initiate Checkout', color: ORANGE, format: 'num' },
+          { metric: 'purchases',         label: 'Compras',           color: GREEN,  format: 'num' },
+          { metric: 'cpa',               label: 'Custo/Compra',      color: GREEN,  format: 'brl' },
+          { metric: 'spend',             label: 'Investimento',      color: TEAL,   format: 'brl' },
+        ],
+      },
+      {
+        id:              'whatsapp',
+        name:            'WhatsApp',
+        patterns:        ['WHATSAPP', 'WAPP', 'WPP', 'MENSAGEM', 'CONVERSA'],
+        conversionType:  'message',
+        conversionLabel: 'Mensagens',
+        goal:            { label: 'Custo por Mensagem', value: 15 },
+        funnel: [
+          { metric: 'clicks',   label: 'Cliques',          color: BLUE,   format: 'num' },
+          { metric: 'ctr',      label: 'CTR',              color: BLUE,   format: 'pct' },
+          { metric: 'cpm',      label: 'CPM',              color: PURPLE, format: 'brl' },
+          { metric: 'messages', label: 'Mensagens',        color: GREEN,  format: 'num' },
+          { metric: 'cpm_msg',  label: 'Custo/Mensagem',   color: GREEN,  format: 'brl' },
+          { metric: 'spend',    label: 'Investimento',     color: TEAL,   format: 'brl' },
+        ],
+      },
+    ],
+    funnel: [
+      { metric: 'clicks',      label: 'Cliques',      color: BLUE,   format: 'num' },
+      { metric: 'conversions', label: 'Conversões',   color: GREEN,  format: 'num' },
+      { metric: 'cpa',         label: 'Custo/Conv.',  color: GREEN,  format: 'brl' },
+      { metric: 'spend',       label: 'Investimento', color: TEAL,   format: 'brl' },
     ],
   },
 

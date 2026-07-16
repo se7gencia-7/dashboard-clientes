@@ -216,3 +216,23 @@ export function getInitiateCheckout(insight: MetaInsight): number {
   );
   return c ? parseInt(c.value, 10) : 0;
 }
+
+const MESSAGE_ACTION_TYPES = new Set([
+  'onsite_conversion.messaging_conversation_started_7d',
+  'onsite_conversion.messaging_first_reply',
+  'onsite_conversion.messaging_welcome_message_view',
+  'offsite_conversion.fb_pixel_contact',
+  'contact',
+]);
+
+export function getMessages(insight: MetaInsight): number {
+  if (!insight.actions) return 0;
+  // Prefer the most specific messaging action; fall back to summing all
+  const started = insight.actions.find(
+    a => a.action_type === 'onsite_conversion.messaging_conversation_started_7d'
+  );
+  if (started) return parseInt(started.value, 10);
+  return insight.actions
+    .filter(a => MESSAGE_ACTION_TYPES.has(a.action_type))
+    .reduce((sum, a) => sum + parseInt(a.value, 10), 0);
+}
