@@ -109,6 +109,45 @@ interface VideoModal {
   loading:   boolean;
 }
 
+// ── Sort helpers (module-level so React doesn't remount on each render) ────────
+type SortDir = 'asc' | 'desc';
+interface SortState { field: string; dir: SortDir }
+
+function sortRows(rows: InsightRow[], field: string, dir: SortDir): InsightRow[] {
+  const val = (r: InsightRow): number => {
+    switch (field) {
+      case 'purchases':        return r.purchases        ?? 0;
+      case 'initiateCheckout': return r.initiateCheckout ?? 0;
+      case 'conversions':      return r.conversions;
+      case 'clicks':           return r.clicks;
+      case 'ctr':              return r.ctr;
+      case 'cpm':              return r.cpm;
+      default:                 return r.spend;
+    }
+  };
+  return [...rows].sort((a, b) => dir === 'desc' ? val(b) - val(a) : val(a) - val(b));
+}
+
+function SortTh({ label, field, sort, setSort }: {
+  label: string; field: string;
+  sort: SortState; setSort: (s: SortState) => void;
+}) {
+  const active = sort.field === field;
+  return (
+    <th
+      className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer select-none"
+      style={{ color: active ? '#FFFFFF' : '#6B7280' }}
+      onClick={() => setSort({ field, dir: active && sort.dir === 'desc' ? 'asc' : 'desc' })}>
+      <span className="flex items-center gap-1">
+        {label}
+        <span style={{ fontSize: 9, opacity: active ? 1 : 0.3 }}>
+          {active ? (sort.dir === 'desc' ? '▼' : '▲') : '⬍'}
+        </span>
+      </span>
+    </th>
+  );
+}
+
 // ── Compute metric value from totals ──────────────────────────────────────────
 function computeMetric(id: MetricId, totals: Totals, campCount: number): number {
   switch (id) {
@@ -253,12 +292,12 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
   const [subLoading, setSubLoading] = useState(false);
   const [error,      setError]      = useState('');
 
-  const isPurchase = config?.conversionType === 'purchase';
+  const isPurchase  = config?.conversionType === 'purchase';
   const defaultSort = isPurchase ? 'purchases' : 'spend';
 
-  type SortDir = 'asc' | 'desc';
-  const [adsetSort,  setAdsetSort]  = useState<{ field: string; dir: SortDir }>({ field: defaultSort, dir: 'desc' });
-  const [adSort,     setAdSort]     = useState<{ field: string; dir: SortDir }>({ field: defaultSort, dir: 'desc' });
+  const [campSort,  setCampSort]  = useState<SortState>({ field: defaultSort, dir: 'desc' });
+  const [adsetSort, setAdsetSort] = useState<SortState>({ field: defaultSort, dir: 'desc' });
+  const [adSort,    setAdSort]    = useState<SortState>({ field: defaultSort, dir: 'desc' });
 
   if (!config) {
     return (
@@ -404,48 +443,6 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
   const convDivisor = isPurchase ? totals.purchases : totals.conversions;
   const cpa     = convDivisor > 0 ? totals.spend / convDivisor : 0;
   const goalOk  = config.goal ? cpa <= config.goal.value : null;
-
-  // ── Sort helper ──────────────────────────────────────────────────────────────
-  function sortRows(rows: InsightRow[], field: string, dir: SortDir): InsightRow[] {
-    return [...rows].sort((a, b) => {
-      const av = field === 'purchases' ? (a.purchases ?? 0)
-               : field === 'initiateCheckout' ? (a.initiateCheckout ?? 0)
-               : field === 'conversions' ? a.conversions
-               : field === 'clicks' ? a.clicks
-               : field === 'ctr' ? a.ctr
-               : field === 'cpm' ? a.cpm
-               : a.spend;
-      const bv = field === 'purchases' ? (b.purchases ?? 0)
-               : field === 'initiateCheckout' ? (b.initiateCheckout ?? 0)
-               : field === 'conversions' ? b.conversions
-               : field === 'clicks' ? b.clicks
-               : field === 'ctr' ? b.ctr
-               : field === 'cpm' ? b.cpm
-               : b.spend;
-      return dir === 'desc' ? bv - av : av - bv;
-    });
-  }
-
-  function SortTh({ label, field, sort, setSort }: {
-    label: string; field: string;
-    sort: { field: string; dir: SortDir };
-    setSort: (s: { field: string; dir: SortDir }) => void;
-  }) {
-    const active = sort.field === field;
-    return (
-      <th
-        className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer select-none"
-        style={{ color: active ? '#fff' : MUTED }}
-        onClick={() => setSort({ field, dir: active && sort.dir === 'desc' ? 'asc' : 'desc' })}>
-        <span className="flex items-center gap-1">
-          {label}
-          <span style={{ fontSize: 9, opacity: active ? 1 : 0.3 }}>
-            {active ? (sort.dir === 'desc' ? '▼' : '▲') : '⬍'}
-          </span>
-        </span>
-      </th>
-    );
-  }
 
   const maxSpend      = projCampInsights[0]?.spend ?? 1;
   const maxAdsetSpend = adsetInsights[0]?.spend ?? 1;
@@ -617,92 +614,87 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
         </div>
 
         {/* ── CAMPANHAS ─────────────────────────────────────────────────────── */}
-        {section === 'campanhas' && (() => {
-          const [campSort, setCampSort] = [adsetSort, setAdsetSort]; // reuse adset sort state for campaigns
-          const sorted = sortRows(projCampInsights, adsetSort.field, adsetSort.dir);
-          const colSpan = isPurchase ? 9 : 7;
-          return (
-            <div className="rounded-lg overflow-hidden" style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}>
-              <div className="px-5 py-4" style={{ borderBottom: `1px solid ${BORDER}` }}>
-                <h3 className="text-white text-sm font-semibold">
-                  Campanhas <span className="font-normal text-xs" style={{ color: MUTED }}>({projCampInsights.length})</span>
-                </h3>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead className="sticky top-0" style={{ backgroundColor: '#1F1F1F' }}>
-                    <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
-                      <th className="px-4 py-3 text-left font-semibold whitespace-nowrap" style={{ color: MUTED }}>Campanha</th>
-                      <th className="px-4 py-3 text-left font-semibold whitespace-nowrap" style={{ color: MUTED }}>Status</th>
-                      <SortTh label="Investimento" field="spend"   sort={adsetSort} setSort={setAdsetSort} />
-                      <SortTh label="Cliques"      field="clicks"  sort={adsetSort} setSort={setAdsetSort} />
-                      <SortTh label="CTR"          field="ctr"     sort={adsetSort} setSort={setAdsetSort} />
-                      {isPurchase && <SortTh label="Init. Checkout" field="initiateCheckout" sort={adsetSort} setSort={setAdsetSort} />}
-                      <SortTh label={isPurchase ? 'Compras' : config.conversionLabel} field={isPurchase ? 'purchases' : 'conversions'} sort={adsetSort} setSort={setAdsetSort} />
-                      <th className="px-4 py-3 text-left font-semibold whitespace-nowrap" style={{ color: MUTED }}>
-                        {isPurchase ? 'Custo/Compra' : 'CPL'}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sorted.length === 0 && (
-                      <tr><td colSpan={colSpan} className="px-4 py-6 text-center" style={{ color: MUTED }}>
-                        {loading ? 'Carregando...' : 'Nenhuma campanha com gasto no período'}
-                      </td></tr>
-                    )}
-                    {sorted.map((row, i) => {
-                      const divisor = isPurchase ? (row.purchases ?? 0) : row.conversions;
-                      const rowCpa  = divisor > 0 ? row.spend / divisor : 0;
-                      const camp    = campaigns.find(c => c.id === row.campaignId);
-                      return (
-                        <tr key={i} className="hover:bg-white/5 transition"
-                          style={{ borderBottom: i < sorted.length - 1 ? `1px solid ${BORDER}` : 'none' }}>
-                          <td className="px-4 py-3 max-w-[260px]">
-                            <p className="text-white font-medium text-xs truncate" title={row.campaignName}>
-                              {cleanName(row.campaignName ?? '')}
-                            </p>
-                          </td>
-                          <td className="px-4 py-3">{statusBadge(camp?.status ?? 'PAUSED')}</td>
-                          <td className="px-4 py-3"><InvBar value={row.spend} max={maxSpend} /></td>
-                          <td className="px-4 py-3 text-white tabular-nums">{fmt.num(row.clicks)}</td>
-                          <td className="px-4 py-3 tabular-nums" style={{ color: MUTED }}>{fmt.pct(row.ctr)}</td>
-                          {isPurchase && (
-                            <td className="px-4 py-3">
-                              <LeadCell v={row.initiateCheckout ?? 0} label="Init. Checkout" />
-                            </td>
-                          )}
-                          <td className="px-4 py-3">
-                            <LeadCell v={isPurchase ? (row.purchases ?? 0) : row.conversions} label={config.conversionLabel} />
-                          </td>
-                          <td className="px-4 py-3" style={{ color: rowCpa > 0 ? GREEN : MUTED }}>
-                            {rowCpa > 0 ? fmt.brl(rowCpa) : '—'}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {sorted.length > 0 && (
-                      <tr style={{ backgroundColor: '#1F1F1F' }}>
-                        <td className="px-4 py-3 font-bold text-white" colSpan={2}>Total</td>
-                        <td className="px-4 py-3 font-bold text-white">{fmt.brl(totals.spend)}</td>
-                        <td className="px-4 py-3 font-bold text-white">{fmt.num(totals.clicks)}</td>
-                        <td className="px-4 py-3 font-bold text-white">
-                          {fmt.pct(totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0)}
-                        </td>
-                        {isPurchase && (
-                          <td className="px-4 py-3 font-bold" style={{ color: GREEN }}>{fmt.num(totals.initiateCheckout)}</td>
-                        )}
-                        <td className="px-4 py-3 font-bold" style={{ color: GREEN }}>
-                          {fmt.num(isPurchase ? totals.purchases : totals.conversions)}
-                        </td>
-                        <td className="px-4 py-3 font-bold" style={{ color: GREEN }}>{cpa > 0 ? fmt.brl(cpa) : '—'}</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+        {section === 'campanhas' && (
+          <div className="rounded-lg overflow-hidden" style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}>
+            <div className="px-5 py-4" style={{ borderBottom: `1px solid ${BORDER}` }}>
+              <h3 className="text-white text-sm font-semibold">
+                Campanhas <span className="font-normal text-xs" style={{ color: MUTED }}>({projCampInsights.length})</span>
+              </h3>
             </div>
-          );
-        })()}
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="sticky top-0" style={{ backgroundColor: '#1F1F1F' }}>
+                  <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
+                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap" style={{ color: MUTED }}>Campanha</th>
+                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap" style={{ color: MUTED }}>Status</th>
+                    <SortTh label="Investimento" field="spend"   sort={campSort} setSort={setCampSort} />
+                    <SortTh label="Cliques"      field="clicks"  sort={campSort} setSort={setCampSort} />
+                    <SortTh label="CTR"          field="ctr"     sort={campSort} setSort={setCampSort} />
+                    {isPurchase && <SortTh label="Init. Checkout" field="initiateCheckout" sort={campSort} setSort={setCampSort} />}
+                    <SortTh label={isPurchase ? 'Compras' : config.conversionLabel} field={isPurchase ? 'purchases' : 'conversions'} sort={campSort} setSort={setCampSort} />
+                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap" style={{ color: MUTED }}>
+                      {isPurchase ? 'Custo/Compra' : 'CPL'}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {projCampInsights.length === 0 && (
+                    <tr><td colSpan={isPurchase ? 8 : 7} className="px-4 py-6 text-center" style={{ color: MUTED }}>
+                      {loading ? 'Carregando...' : 'Nenhuma campanha com gasto no período'}
+                    </td></tr>
+                  )}
+                  {sortRows(projCampInsights, campSort.field, campSort.dir).map((row, i) => {
+                    const divisor = isPurchase ? (row.purchases ?? 0) : row.conversions;
+                    const rowCpa  = divisor > 0 ? row.spend / divisor : 0;
+                    const camp    = campaigns.find(c => c.id === row.campaignId);
+                    return (
+                      <tr key={i} className="hover:bg-white/5 transition"
+                        style={{ borderBottom: `1px solid ${BORDER}` }}>
+                        <td className="px-4 py-3 max-w-[260px]">
+                          <p className="text-white font-medium text-xs truncate" title={row.campaignName}>
+                            {cleanName(row.campaignName ?? '')}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3">{statusBadge(camp?.status ?? 'PAUSED')}</td>
+                        <td className="px-4 py-3"><InvBar value={row.spend} max={maxSpend} /></td>
+                        <td className="px-4 py-3 text-white tabular-nums">{fmt.num(row.clicks)}</td>
+                        <td className="px-4 py-3 tabular-nums" style={{ color: MUTED }}>{fmt.pct(row.ctr)}</td>
+                        {isPurchase && (
+                          <td className="px-4 py-3">
+                            <LeadCell v={row.initiateCheckout ?? 0} label="Init. Checkout" />
+                          </td>
+                        )}
+                        <td className="px-4 py-3">
+                          <LeadCell v={isPurchase ? (row.purchases ?? 0) : row.conversions} label={config.conversionLabel} />
+                        </td>
+                        <td className="px-4 py-3" style={{ color: rowCpa > 0 ? GREEN : MUTED }}>
+                          {rowCpa > 0 ? fmt.brl(rowCpa) : '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {projCampInsights.length > 0 && (
+                    <tr style={{ backgroundColor: '#1F1F1F' }}>
+                      <td className="px-4 py-3 font-bold text-white" colSpan={2}>Total</td>
+                      <td className="px-4 py-3 font-bold text-white">{fmt.brl(totals.spend)}</td>
+                      <td className="px-4 py-3 font-bold text-white">{fmt.num(totals.clicks)}</td>
+                      <td className="px-4 py-3 font-bold text-white">
+                        {fmt.pct(totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0)}
+                      </td>
+                      {isPurchase && (
+                        <td className="px-4 py-3 font-bold" style={{ color: GREEN }}>{fmt.num(totals.initiateCheckout)}</td>
+                      )}
+                      <td className="px-4 py-3 font-bold" style={{ color: GREEN }}>
+                        {fmt.num(isPurchase ? totals.purchases : totals.conversions)}
+                      </td>
+                      <td className="px-4 py-3 font-bold" style={{ color: GREEN }}>{cpa > 0 ? fmt.brl(cpa) : '—'}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* ── CONJUNTOS ─────────────────────────────────────────────────────── */}
         {section === 'conjuntos' && (
