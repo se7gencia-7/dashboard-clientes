@@ -253,6 +253,13 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
   const [subLoading, setSubLoading] = useState(false);
   const [error,      setError]      = useState('');
 
+  const isPurchase = config?.conversionType === 'purchase';
+  const defaultSort = isPurchase ? 'purchases' : 'spend';
+
+  type SortDir = 'asc' | 'desc';
+  const [adsetSort,  setAdsetSort]  = useState<{ field: string; dir: SortDir }>({ field: defaultSort, dir: 'desc' });
+  const [adSort,     setAdSort]     = useState<{ field: string; dir: SortDir }>({ field: defaultSort, dir: 'desc' });
+
   if (!config) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: BG }}>
@@ -394,8 +401,51 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
   }));
 
   // ── Goal check ───────────────────────────────────────────────────────────────
-  const cpa = totals.conversions > 0 ? totals.spend / totals.conversions : 0;
-  const goalOk = config.goal ? cpa <= config.goal.value : null;
+  const convDivisor = isPurchase ? totals.purchases : totals.conversions;
+  const cpa     = convDivisor > 0 ? totals.spend / convDivisor : 0;
+  const goalOk  = config.goal ? cpa <= config.goal.value : null;
+
+  // ── Sort helper ──────────────────────────────────────────────────────────────
+  function sortRows(rows: InsightRow[], field: string, dir: SortDir): InsightRow[] {
+    return [...rows].sort((a, b) => {
+      const av = field === 'purchases' ? (a.purchases ?? 0)
+               : field === 'initiateCheckout' ? (a.initiateCheckout ?? 0)
+               : field === 'conversions' ? a.conversions
+               : field === 'clicks' ? a.clicks
+               : field === 'ctr' ? a.ctr
+               : field === 'cpm' ? a.cpm
+               : a.spend;
+      const bv = field === 'purchases' ? (b.purchases ?? 0)
+               : field === 'initiateCheckout' ? (b.initiateCheckout ?? 0)
+               : field === 'conversions' ? b.conversions
+               : field === 'clicks' ? b.clicks
+               : field === 'ctr' ? b.ctr
+               : field === 'cpm' ? b.cpm
+               : b.spend;
+      return dir === 'desc' ? bv - av : av - bv;
+    });
+  }
+
+  function SortTh({ label, field, sort, setSort }: {
+    label: string; field: string;
+    sort: { field: string; dir: SortDir };
+    setSort: (s: { field: string; dir: SortDir }) => void;
+  }) {
+    const active = sort.field === field;
+    return (
+      <th
+        className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer select-none"
+        style={{ color: active ? '#fff' : MUTED }}
+        onClick={() => setSort({ field, dir: active && sort.dir === 'desc' ? 'asc' : 'desc' })}>
+        <span className="flex items-center gap-1">
+          {label}
+          <span style={{ fontSize: 9, opacity: active ? 1 : 0.3 }}>
+            {active ? (sort.dir === 'desc' ? '▼' : '▲') : '⬍'}
+          </span>
+        </span>
+      </th>
+    );
+  }
 
   const maxSpend      = projCampInsights[0]?.spend ?? 1;
   const maxAdsetSpend = adsetInsights[0]?.spend ?? 1;
@@ -680,19 +730,28 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
               <table className="w-full text-xs">
                 <thead style={{ backgroundColor: '#1F1F1F' }}>
                   <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
-                    {['Conjunto', 'Campanha', 'Investimento', 'Cliques', 'CTR', 'CPM', config.conversionLabel, 'CPL'].map(h => (
-                      <th key={h} className="px-4 py-3 text-left font-semibold whitespace-nowrap" style={{ color: MUTED }}>{h}</th>
-                    ))}
+                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap" style={{ color: MUTED }}>Conjunto</th>
+                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap" style={{ color: MUTED }}>Campanha</th>
+                    <SortTh label="Investimento"    field="spend"            sort={adsetSort} setSort={setAdsetSort} />
+                    <SortTh label="Cliques"         field="clicks"           sort={adsetSort} setSort={setAdsetSort} />
+                    <SortTh label="CTR"             field="ctr"              sort={adsetSort} setSort={setAdsetSort} />
+                    <SortTh label="CPM"             field="cpm"              sort={adsetSort} setSort={setAdsetSort} />
+                    {isPurchase && <SortTh label="Init. Checkout" field="initiateCheckout" sort={adsetSort} setSort={setAdsetSort} />}
+                    <SortTh label={isPurchase ? 'Compras' : config.conversionLabel} field={isPurchase ? 'purchases' : 'conversions'} sort={adsetSort} setSort={setAdsetSort} />
+                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap" style={{ color: MUTED }}>
+                      {isPurchase ? 'Custo/Compra' : 'CPL'}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {adsetInsights.length === 0 && (
-                    <tr><td colSpan={8} className="px-4 py-6 text-center" style={{ color: MUTED }}>
+                    <tr><td colSpan={isPurchase ? 9 : 8} className="px-4 py-6 text-center" style={{ color: MUTED }}>
                       {subLoading ? 'Carregando conjuntos...' : 'Nenhum conjunto com gasto no período'}
                     </td></tr>
                   )}
-                  {adsetInsights.sort((a, b) => b.spend - a.spend).map((row, i) => {
-                    const rowCpa = row.conversions > 0 ? row.spend / row.conversions : 0;
+                  {sortRows(adsetInsights, adsetSort.field, adsetSort.dir).map((row, i) => {
+                    const divisor = isPurchase ? (row.purchases ?? 0) : row.conversions;
+                    const rowCpa  = divisor > 0 ? row.spend / divisor : 0;
                     return (
                       <tr key={i} className="hover:bg-white/5 transition"
                         style={{ borderBottom: i < adsetInsights.length - 1 ? `1px solid ${BORDER}` : 'none' }}>
@@ -710,7 +769,14 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
                         <td className="px-4 py-3 text-white tabular-nums">{fmt.num(row.clicks)}</td>
                         <td className="px-4 py-3 tabular-nums" style={{ color: MUTED }}>{fmt.pct(row.ctr)}</td>
                         <td className="px-4 py-3 tabular-nums" style={{ color: MUTED }}>{fmt.brl(row.cpm)}</td>
-                        <td className="px-4 py-3"><LeadCell v={row.conversions} label={config.conversionLabel} /></td>
+                        {isPurchase && (
+                          <td className="px-4 py-3">
+                            <LeadCell v={row.initiateCheckout ?? 0} label="Init. Checkout" />
+                          </td>
+                        )}
+                        <td className="px-4 py-3">
+                          <LeadCell v={isPurchase ? (row.purchases ?? 0) : row.conversions} label={config.conversionLabel} />
+                        </td>
                         <td className="px-4 py-3" style={{ color: rowCpa > 0 ? GREEN : MUTED }}>
                           {rowCpa > 0 ? fmt.brl(rowCpa) : '—'}
                         </td>
@@ -743,9 +809,19 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
               <table className="w-full text-xs">
                 <thead style={{ backgroundColor: '#1F1F1F' }}>
                   <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
-                    {['Prévia', 'Anúncio', 'CTR', 'Viz. Pág.', 'Connect%', config.conversionLabel, 'CPL', 'Investimento'].map(h => (
-                      <th key={h} className="px-4 py-3 text-left font-semibold" style={{ color: MUTED }}>{h}</th>
-                    ))}
+                    <th className="px-4 py-3 text-left font-semibold" style={{ color: MUTED }}>Prévia</th>
+                    <th className="px-4 py-3 text-left font-semibold" style={{ color: MUTED }}>Anúncio</th>
+                    <SortTh label="CTR"          field="ctr"              sort={adSort} setSort={setAdSort} />
+                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap" style={{ color: MUTED }}>Viz. Pág.</th>
+                    {isPurchase
+                      ? <SortTh label="Init. Checkout" field="initiateCheckout" sort={adSort} setSort={setAdSort} />
+                      : <th className="px-4 py-3 text-left font-semibold whitespace-nowrap" style={{ color: MUTED }}>Connect%</th>
+                    }
+                    <SortTh label={isPurchase ? 'Compras' : config.conversionLabel} field={isPurchase ? 'purchases' : 'conversions'} sort={adSort} setSort={setAdSort} />
+                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap" style={{ color: MUTED }}>
+                      {isPurchase ? 'Custo/Compra' : 'CPL'}
+                    </th>
+                    <SortTh label="Investimento" field="spend"            sort={adSort} setSort={setAdSort} />
                   </tr>
                 </thead>
                 <tbody>
@@ -754,11 +830,12 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
                       {subLoading ? 'Carregando criativos...' : 'Sem dados de criativos no período'}
                     </td></tr>
                   )}
-                  {adInsights.sort((a, b) => b.spend - a.spend).map((row, i) => {
-                    const rowCpa = row.conversions > 0 ? row.spend / row.conversions : 0;
-                    const rowCr  = row.clicks > 0 ? (row.landingPageViews / row.clicks) * 100 : 0;
-                    const ad     = row.adId ? adsMap[row.adId] : undefined;
-                    const isVid  = !!ad?.creative?.video_id;
+                  {sortRows(adInsights, adSort.field, adSort.dir).map((row, i) => {
+                    const divisor = isPurchase ? (row.purchases ?? 0) : row.conversions;
+                    const rowCpa  = divisor > 0 ? row.spend / divisor : 0;
+                    const rowCr   = row.clicks > 0 ? (row.landingPageViews / row.clicks) * 100 : 0;
+                    const ad      = row.adId ? adsMap[row.adId] : undefined;
+                    const isVid   = !!ad?.creative?.video_id;
                     return (
                       <tr key={i} className="hover:bg-white/5 transition" style={{ borderBottom: `1px solid ${BORDER}` }}>
                         <td className="px-4 py-3">
@@ -776,10 +853,15 @@ export default function UniversalClientDashboard({ params }: { params: Promise<{
                         </td>
                         <td className="px-4 py-3 text-white tabular-nums">{fmt.pct(row.ctr)}</td>
                         <td className="px-4 py-3 text-white tabular-nums">{fmt.num(row.landingPageViews)}</td>
-                        <td className="px-4 py-3 tabular-nums" style={{ color: rowCr > 50 ? GREEN : MUTED }}>
-                          {rowCr > 0 ? fmt.pct(rowCr, 1) : '—'}
+                        {isPurchase
+                          ? <td className="px-4 py-3"><LeadCell v={row.initiateCheckout ?? 0} label="Init. Checkout" /></td>
+                          : <td className="px-4 py-3 tabular-nums" style={{ color: rowCr > 50 ? GREEN : MUTED }}>
+                              {rowCr > 0 ? fmt.pct(rowCr, 1) : '—'}
+                            </td>
+                        }
+                        <td className="px-4 py-3">
+                          <LeadCell v={isPurchase ? (row.purchases ?? 0) : row.conversions} label={config.conversionLabel} />
                         </td>
-                        <td className="px-4 py-3"><LeadCell v={row.conversions} label={config.conversionLabel} /></td>
                         <td className="px-4 py-3" style={{ color: rowCpa > 0 ? GREEN : MUTED }}>
                           {rowCpa > 0 ? fmt.brl(rowCpa) : '—'}
                         </td>
