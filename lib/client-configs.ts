@@ -157,7 +157,7 @@ export const CLIENT_CONFIGS: ClientConfig[] = [
     conversionType:  'lead',
     goal:            { label: 'Custo por Inscrição', value: 90 },
     projects: [
-      { id: 'seminario',  name: 'Seminário de Teologia', patterns: ['SEMINÁRIO', 'SEMINARIO', 'TEOLOGIA'] },
+      { id: 'seminario',  name: 'Seminário de Teologia', patterns: ['SEMINARIO_TEOLOGIA'] },
       { id: 'vta',        name: 'Volta às Aulas',        patterns: ['VOLTA', 'VTA', 'AULAS']             },
       { id: 'pedagogia',  name: 'Volta Pedagogia',       patterns: ['PEDAGOGIA', 'PED']                  },
     ],
